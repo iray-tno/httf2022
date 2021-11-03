@@ -6,13 +6,14 @@
 #include <queue>
 #include <numeric>
 #include <map>
+#include <set>
 #include <memory>
 #include <cmath>
 #include <cstring>
 #include <cstdlib>
 #include <cstdio>
 #include <cmath>
-#include <sys/time.h>
+// #include <sys/time.h>
 
 #ifdef LOCAL
 // #define MEASURE_TIME
@@ -24,6 +25,9 @@
 #include <cassert>
 
 using namespace std;
+
+constexpr bool PRINT_EST = true;
+constexpr bool PRINT_DEBUG = false;
 
 /**
  * 逆トポロジカルソートの順番で走査し、クリティカルパスを考慮したコストを計算する
@@ -57,6 +61,88 @@ vector<int> calcSumScores(int taskSize, vector<pair<int, int>> &taskRelations, v
     return taskSumScores;
 }
 
+struct Result {
+    int taskId;
+    // vector<int> taskRequirements;
+    int duration;
+};
+
+typedef vector<int> Skillset;
+struct Portfolio {
+    int memberId;
+    vector<Result> results;
+    Skillset skillset;
+
+    static int calcDuration(int skills, const vector<int> &task, const Skillset &skillset) {
+        int duration = 0;
+        for (int i = 0; i < skills; ++i) {
+            duration += max(0, task[i] - skillset[i]);
+        }
+        duration = max(1, duration);
+        return duration;
+    }
+
+    static int calcDiff(int skills, const vector<vector<int>> &tasks, const Skillset &skillset, const vector<Result> &results) {
+        int diff = 0;
+        for (auto& r : results) {
+            int estDuration = calcDuration(skills, tasks[r.taskId], skillset);
+            diff += abs(estDuration - r.duration);
+        }
+        return diff;
+    }
+
+    void updateSkillset(int skills, vector<vector<int>> &tasks) {
+        Skillset current = skillset;
+        int currentDiff = calcDiff(skills, tasks, current, results);
+
+        int loop = 0;
+        while (loop < 1000) {
+            bool updated = false;
+            for (int i = 0; i < skills; ++i) {
+                for (int j = 0; j < 2; ++j) {
+                    bool positive = j == 0;
+                    if (current[i] == 0 && !positive) continue;
+
+                    current[i] += positive ? +1 : -1;
+                    int nextDiff = calcDiff(skills, tasks, current, results);
+                    if (nextDiff < currentDiff) { // 採用
+                        currentDiff = nextDiff;
+                        updated = true;
+                        goto CONTINUE;
+                    }
+
+                    current[i] -= positive ? +1 : -1; // 不採用なので元に戻す
+                }
+            }
+            CONTINUE:
+            if (!updated) break;
+            loop++;
+        }
+        skillset = current;
+
+        printSkillset();
+        return;
+    }
+
+    void printSkillset() {
+        if (!PRINT_EST) return;
+        if (memberId == 0) return;
+        cout << "#s " << memberId;
+        for (auto& s : skillset) cout << " " << s;
+        cout << endl;
+    }
+};
+
+vector<Portfolio> initPortfolios(int members, int skills) {
+    vector<Portfolio> portfolios(members + 1);
+
+    for (int i = 0; i < portfolios.size(); ++i) {
+        portfolios[i] = { i, vector<Result>(0), Skillset(skills, 5) };
+    }
+
+    for (auto& p : portfolios) p.printSkillset();
+    return portfolios;
+}
 
 int main() {
     int n, m, k, r;
@@ -86,34 +172,57 @@ int main() {
 
     vector<int> taskSumScores = calcSumScores(tasks.size(), taskRelations, taskScores);
 
-    // for (int i = 0; i < tasks.size(); ++i) {
-    //     cerr << i << ": " << taskScores[i] << " " << taskSumScores[i] << endl;
-    // }
+    if (PRINT_DEBUG) {
+        for (int i = 0; i < tasks.size(); ++i) {
+            cerr << i << ": " << taskScores[i] << " " << taskSumScores[i] << endl;
+        }
+    }
 
     priority_queue<pair<int, int>> readyTasks;
     for (int taskId = 1; taskId < indegree.size(); taskId++) {
         if (indegree[taskId] == 0) readyTasks.push(make_pair(taskSumScores[taskId], taskId));
     }
 
-    int startedTasks = 0, finishedTasks = 0;
-    queue<int> availableMembers;
-    for (int i = 0; i < m; ++i) availableMembers.push(i + 1);
+    vector<Portfolio> portfolios = initPortfolios(m, k);
 
-    map<int, int> assignedTaskMap;
+    int startedTasks = 0, finishedTasks = 0;
+    set<int> availableMembers;
+    for (int i = 0; i < m; ++i) availableMembers.insert(i + 1);
+
+    map<int, pair<int, int>> assignedTaskMap;
+    int day = 0;
     while (finishedTasks < tasks.size()) {
         int startingTasks = min(readyTasks.size(), availableMembers.size());
 
         cout << startingTasks;
         for (int i = 0; i < startingTasks; ++i) {
-            int memberId = availableMembers.front(); availableMembers.pop();
             int taskId = readyTasks.top().second; readyTasks.pop();
 
-            assignedTaskMap[memberId] = taskId;
+            int bestMemberId = -1;
+            int bestDuration = -1;
+            for (auto& memberId : availableMembers) {
+                Portfolio portfolio= portfolios[memberId];
+                int estDuration = Portfolio::calcDuration(k, tasks[taskId], portfolio.skillset);
+
+                if (bestMemberId == -1 || estDuration < bestDuration) {
+                    bestMemberId = memberId;
+                    bestDuration = estDuration;
+                }
+            }
+
+            int memberId = bestMemberId;
+            availableMembers.erase(memberId);
+
+            assignedTaskMap[memberId] = make_pair(taskId, day);
             startedTasks++;
             cout << " " << memberId << " " << taskId;
-            // cerr << "assigned: " << taskId << " to " << memberId << " score " << taskSumScores[taskId] << endl;
+            if (PRINT_DEBUG) {
+                cerr << "assigned: " << taskId << " to " << memberId << " score " << taskSumScores[taskId] << endl;
+            }
         }
         cout << endl;
+
+        day++;
 
         int finishedMembers;
         cin >> finishedMembers;
@@ -122,9 +231,16 @@ int main() {
         for (int i = 0; i < finishedMembers; ++i) {
             int finishedMemberId;
             cin >> finishedMemberId;
-            int finishedTaskId = assignedTaskMap[finishedMemberId];
+            int finishedTaskId = assignedTaskMap[finishedMemberId].first;
+            int duration = day - assignedTaskMap[finishedMemberId].second;
 
-            availableMembers.push(finishedMemberId);
+            if (PRINT_DEBUG) {
+                cerr << finishedMemberId << " finished task " << finishedTaskId << " by " << duration << endl;
+            }
+            portfolios[finishedMemberId].results.push_back({ finishedTaskId, duration });
+            portfolios[finishedMemberId].updateSkillset(k, tasks);
+
+            availableMembers.insert(finishedMemberId);
             for (auto& taskId : graph[finishedTaskId]) {
                 indegree[taskId] -= 1;
                 if (indegree[taskId] == 0) readyTasks.push(make_pair(taskSumScores[taskId], taskId));
