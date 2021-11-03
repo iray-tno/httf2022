@@ -25,6 +25,38 @@
 
 using namespace std;
 
+/**
+ * 逆トポロジカルソートの順番で走査し、クリティカルパスを考慮したコストを計算する
+ */
+vector<int> calcSumScores(int taskSize, vector<pair<int, int>> &taskRelations, vector<int> &scores) {
+    vector<vector<int>> graph(taskSize);
+    vector<int> indegree(taskSize, 0);
+    for (const auto& r : taskRelations) {
+        graph[r.second].push_back(r.first);
+        indegree[r.first] += 1;
+    }
+
+    vector<int> taskSumScores(graph.size(), 0);
+
+    queue<int> zeroIndegreeVertexes;
+    for (int i = 0; i < graph.size(); i++) {
+        if (indegree[i] == 0) zeroIndegreeVertexes.push(i);
+    }
+
+    while (zeroIndegreeVertexes.empty() == false) {
+        int v = zeroIndegreeVertexes.front(); zeroIndegreeVertexes.pop();
+        taskSumScores[v] += scores[v];
+
+        for (auto& u : graph[v]) {
+            taskSumScores[u] += taskSumScores[v];
+            indegree[u] -= 1;
+            if (indegree[u] == 0) zeroIndegreeVertexes.push(u);
+        }
+    }
+
+    return taskSumScores;
+}
+
 
 int main() {
     int n, m, k, r;
@@ -46,16 +78,21 @@ int main() {
     // 隣接リスト
     vector<vector<int>> graph(tasks.size());
     vector<int> indegree(tasks.size(), 0);
-
     for (const auto& r : taskRelations) {
         int first = r.first, second = r.second;
         graph[first].push_back(second);
         indegree[second] += 1;
     }
 
+    vector<int> taskSumScores = calcSumScores(tasks.size(), taskRelations, taskScores);
+
+    // for (int i = 0; i < tasks.size(); ++i) {
+    //     cerr << i << ": " << taskScores[i] << " " << taskSumScores[i] << endl;
+    // }
+
     priority_queue<pair<int, int>> readyTasks;
     for (int taskId = 1; taskId < indegree.size(); taskId++) {
-        if (indegree[taskId] == 0) readyTasks.push(make_pair(taskScores[taskId], taskId));
+        if (indegree[taskId] == 0) readyTasks.push(make_pair(taskSumScores[taskId], taskId));
     }
 
     int startedTasks = 0, finishedTasks = 0;
@@ -74,7 +111,7 @@ int main() {
             assignedTaskMap[memberId] = taskId;
             startedTasks++;
             cout << " " << memberId << " " << taskId;
-            // cerr << "assigned: " << taskId << " to " << memberId << " score " << taskScores[taskId] << endl;
+            // cerr << "assigned: " << taskId << " to " << memberId << " score " << taskSumScores[taskId] << endl;
         }
         cout << endl;
 
@@ -90,7 +127,7 @@ int main() {
             availableMembers.push(finishedMemberId);
             for (auto& taskId : graph[finishedTaskId]) {
                 indegree[taskId] -= 1;
-                if (indegree[taskId] == 0) readyTasks.push(make_pair(taskScores[taskId], taskId));
+                if (indegree[taskId] == 0) readyTasks.push(make_pair(taskSumScores[taskId], taskId));
             }
             finishedTasks++;
         }
