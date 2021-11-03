@@ -31,9 +31,16 @@ int main() {
 
     cin >> n >> m >> k >> r;
 
-    vector<vector<int>> tasks(n, vector<int>(k, 0));
+    vector<vector<int>> tasks(n + 1, vector<int>(k, 0));
+    vector<int> taskScores(n + 1, 0);
     vector<pair<int, int>> taskRelations(r, pair<int, int>());
-    for (int i = 0; i < n; ++i) for (int j = 0; j < k; ++j) cin >> tasks[i][j];
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < k; ++j) {
+            cin >> tasks[i + 1][j];
+            taskScores[i + 1] += tasks[i + 1][j];
+        }
+    }
+
     for (int i = 0; i < r; ++i) cin >> taskRelations[i].first >> taskRelations[i].second;
 
     // 隣接リスト
@@ -41,19 +48,19 @@ int main() {
     vector<int> indegree(tasks.size(), 0);
 
     for (const auto& r : taskRelations) {
-        int first = r.first - 1, second = r.second - 1;
+        int first = r.first, second = r.second;
         graph[first].push_back(second);
         indegree[second] += 1;
     }
 
-    queue<int> readyTasks;
-    for (int taskId = 0; taskId < indegree.size(); taskId++) {
-        if (indegree[taskId] == 0) readyTasks.push(taskId + 1);
+    priority_queue<pair<int, int>> readyTasks;
+    for (int taskId = 1; taskId < indegree.size(); taskId++) {
+        if (indegree[taskId] == 0) readyTasks.push(make_pair(taskScores[taskId], taskId));
     }
 
     int startedTasks = 0, finishedTasks = 0;
     queue<int> availableMembers;
-    for (int i = 0; i < 20; ++i) availableMembers.push(i + 1);
+    for (int i = 0; i < m; ++i) availableMembers.push(i + 1);
 
     map<int, int> assignedTaskMap;
     while (finishedTasks < tasks.size()) {
@@ -62,11 +69,12 @@ int main() {
         cout << startingTasks;
         for (int i = 0; i < startingTasks; ++i) {
             int memberId = availableMembers.front(); availableMembers.pop();
-            int taskId = readyTasks.front(); readyTasks.pop();
+            int taskId = readyTasks.top().second; readyTasks.pop();
 
             assignedTaskMap[memberId] = taskId;
             startedTasks++;
             cout << " " << memberId << " " << taskId;
+            // cerr << "assigned: " << taskId << " to " << memberId << " score " << taskScores[taskId] << endl;
         }
         cout << endl;
 
@@ -80,9 +88,9 @@ int main() {
             int finishedTaskId = assignedTaskMap[finishedMemberId];
 
             availableMembers.push(finishedMemberId);
-            for (auto& u : graph[finishedTaskId - 1]) {
-                indegree[u] -= 1;
-                if (indegree[u] == 0) readyTasks.push(u + 1);
+            for (auto& taskId : graph[finishedTaskId]) {
+                indegree[taskId] -= 1;
+                if (indegree[taskId] == 0) readyTasks.push(make_pair(taskScores[taskId], taskId));
             }
             finishedTasks++;
         }
