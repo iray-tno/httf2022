@@ -27,7 +27,7 @@
 using namespace std;
 
 constexpr bool PRINT_EST = true;
-constexpr bool PRINT_DEBUG = true;
+constexpr bool PRINT_DEBUG = false;
 
 /**
  * 逆トポロジカルソートの順番で走査し、クリティカルパスを考慮したコストを計算する
@@ -199,37 +199,88 @@ int main() {
     map<int, Assignment> assignedTaskMap;
     int day = 0;
     while (finishedTasks < tasks.size()) {
-        int startingTasks = min(readyTasks.size(), availableMembers.size());
+        if (availableMembers.size() <= readyTasks.size()) {
+            // メンバーのほうが少ない場合、メンバーごとに最大効率のタスクを選んでアサインする
+            cout << availableMembers.size();
 
-        cout << startingTasks;
-        for (int i = 0; i < startingTasks; ++i) {
-            int taskId = readyTasks.top().second; readyTasks.pop();
-
-            int bestMemberId = -1;
-            int bestDuration = -1;
+            set<int> taskChoices;
+            int maxChoices = min(max((int)availableMembers.size() * 2, 2), (int)readyTasks.size());
+            for (int i = 0; i < maxChoices; ++i) {
+                int taskId = readyTasks.top().second; readyTasks.pop();
+                taskChoices.insert(taskId);
+            }
             for (auto& memberId : availableMembers) {
-                Portfolio portfolio= portfolios[memberId];
-                int estDuration = Portfolio::calcDuration(k, tasks[taskId], portfolio.skillset);
+                Skillset skillset = portfolios[memberId].skillset;
+                int maxFlow = accumulate(skillset.begin(), skillset.end(), 0);
 
-                if (bestMemberId == -1 || estDuration < bestDuration) {
-                    bestMemberId = memberId;
-                    bestDuration = estDuration;
+                int bestTaskId = -1;
+                int bestEffectiveness = -1;
+                int bestTaskPriority = -1;
+                for (auto& taskId : taskChoices) {
+                    int estDuration = Portfolio::calcDuration(k, tasks[taskId], skillset);
+                    int effectiveness = - estDuration;
+                    // int effectiveness = - estDuration * 1000 + taskSumScores[taskId];
+                    // int effectiveness = taskScores[taskId] - estDuration * maxFlow;
+                    int priority = taskSumScores[taskId];
+
+                    if (bestTaskId == -1 || bestEffectiveness < effectiveness || bestEffectiveness == effectiveness && bestTaskPriority < priority) {
+                        bestTaskId = taskId;
+                        bestEffectiveness = effectiveness;
+                        bestTaskPriority = priority;
+                    }
+                }
+                int taskId = bestTaskId;
+                int estDuration = Portfolio::calcDuration(k, tasks[taskId], portfolios[memberId].skillset);
+
+                assignedTaskMap[memberId] = { taskId, memberId, day, day + estDuration};
+                
+                taskChoices.erase(taskId);
+
+                startedTasks++;
+                cout << " " << memberId << " " << taskId;
+                if (PRINT_DEBUG) {
+                    cerr << "!assigned: " << taskId << " to " << memberId << " score " << taskSumScores[taskId] << endl;
                 }
             }
-
-            int memberId = bestMemberId;
-            availableMembers.erase(memberId);
-
-            int estDuration = Portfolio::calcDuration(k, tasks[taskId], portfolios[memberId].skillset);
+            cout << endl;
             
-            assignedTaskMap[memberId] = { taskId, memberId, day, day + estDuration};
-            startedTasks++;
-            cout << " " << memberId << " " << taskId;
-            if (PRINT_DEBUG) {
-                cerr << "assigned: " << taskId << " to " << memberId << " score " << taskSumScores[taskId] << endl;
+            for (auto& taskId : taskChoices) {
+                readyTasks.push(make_pair(taskSumScores[taskId], taskId));
             }
+            availableMembers.clear(); // メンバーごとにループしてアサインしたのですべて使われる
+        } else {
+            // タスクのほうが少ない場合、タスクごとにごとに早く終わるものを
+            cout << readyTasks.size();
+            int taskSize = readyTasks.size();
+            for (int i = 0; i < taskSize; ++i) {
+                int taskId = readyTasks.top().second; readyTasks.pop();
+                int bestMemberId = -1;
+                int bestDuration = -1;
+                for (auto& memberId : availableMembers) {
+                    Portfolio portfolio= portfolios[memberId];
+                    int estDuration = Portfolio::calcDuration(k, tasks[taskId], portfolio.skillset);
+
+                    if (bestMemberId == -1 || estDuration < bestDuration) {
+                        bestMemberId = memberId;
+                        bestDuration = estDuration;
+                    }
+                }
+
+                int memberId = bestMemberId;
+                availableMembers.erase(memberId);
+
+                int estDuration = Portfolio::calcDuration(k, tasks[taskId], portfolios[memberId].skillset);
+                
+                assignedTaskMap[memberId] = { taskId, memberId, day, day + estDuration};
+                startedTasks++;
+                cout << " " << memberId << " " << taskId;
+                if (PRINT_DEBUG) {
+                    cerr << "#assigned: " << taskId << " to " << memberId << " score " << taskSumScores[taskId] << endl;
+                }
+            }
+            cout << endl;
+            // readyTasks.clear();
         }
-        cout << endl;
 
         day++;
 
