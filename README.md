@@ -4,5 +4,6 @@
 TODO
 
 - ★何らかの探索を入れる
+- ★100ケースくらいやって平均を出すスクリプトを書く
 - https://stackoverflow.com/questions/39136653/task-scheduling-optimization-with-dependency-and-worker-constraint
 - https://shindannin.hatenadiary.com/entry/2021/03/06/115415
