@@ -3,6 +3,6 @@
 
 TODO
 
-- 予想完了日を元に、完了を待った方が得なケースをケースを考慮する
-- 今のタスクで上限が見えていないっぽいスキルに加算する
-- 何らかの探索を入れる
+- ★何らかの探索を入れる
+- https://stackoverflow.com/questions/39136653/task-scheduling-optimization-with-dependency-and-worker-constraint
+- https://shindannin.hatenadiary.com/entry/2021/03/06/115415
