@@ -27,7 +27,7 @@
 using namespace std;
 
 constexpr bool PRINT_EST = true;
-constexpr bool PRINT_DEBUG = false;
+constexpr bool PRINT_DEBUG = true;
 
 /**
  * 逆トポロジカルソートの順番で走査し、クリティカルパスを考慮したコストを計算する
@@ -144,6 +144,13 @@ vector<Portfolio> initPortfolios(int members, int skills) {
     return portfolios;
 }
 
+struct Assignment {
+    int taskId;
+    int memberId;
+    int startAt;
+    int estFinishAt;
+};
+
 int main() {
     int n, m, k, r;
 
@@ -189,7 +196,7 @@ int main() {
     set<int> availableMembers;
     for (int i = 0; i < m; ++i) availableMembers.insert(i + 1);
 
-    map<int, pair<int, int>> assignedTaskMap;
+    map<int, Assignment> assignedTaskMap;
     int day = 0;
     while (finishedTasks < tasks.size()) {
         int startingTasks = min(readyTasks.size(), availableMembers.size());
@@ -213,7 +220,9 @@ int main() {
             int memberId = bestMemberId;
             availableMembers.erase(memberId);
 
-            assignedTaskMap[memberId] = make_pair(taskId, day);
+            int estDuration = Portfolio::calcDuration(k, tasks[taskId], portfolios[memberId].skillset);
+            
+            assignedTaskMap[memberId] = { taskId, memberId, day, day + estDuration};
             startedTasks++;
             cout << " " << memberId << " " << taskId;
             if (PRINT_DEBUG) {
@@ -231,11 +240,12 @@ int main() {
         for (int i = 0; i < finishedMembers; ++i) {
             int finishedMemberId;
             cin >> finishedMemberId;
-            int finishedTaskId = assignedTaskMap[finishedMemberId].first;
-            int duration = day - assignedTaskMap[finishedMemberId].second;
+            int finishedTaskId = assignedTaskMap[finishedMemberId].taskId;
+            int duration = day - assignedTaskMap[finishedMemberId].startAt;
+            int estDuration = assignedTaskMap[finishedMemberId].estFinishAt - assignedTaskMap[finishedMemberId].startAt;
 
             if (PRINT_DEBUG) {
-                cerr << finishedMemberId << " finished task " << finishedTaskId << " by " << duration << endl;
+                cerr << finishedMemberId << " finished task " << finishedTaskId << " by " << duration << " estimated as " << estDuration << endl;
             }
             portfolios[finishedMemberId].results.push_back({ finishedTaskId, duration });
             portfolios[finishedMemberId].updateSkillset(k, tasks);
