@@ -27,7 +27,7 @@
 using namespace std;
 
 constexpr bool PRINT_EST = false;
-constexpr bool PRINT_DEBUG = true;
+constexpr bool PRINT_DEBUG = false;
 
 unsigned int randxor() {
     static unsigned int x=123456789,y=362436069,z=521288629,w=88675123;
@@ -74,7 +74,7 @@ vector<int> calcSumDists(int taskSize, vector<pair<int, int>> &taskRelations) {
 /**
  * 逆トポロジカルソートの順番で走査し、クリティカルパスを考慮したコストを計算する
  */
-vector<int> calcSumCosts(int taskSize, vector<pair<int, int>> &taskRelations, vector<int> &scores) {
+vector<long long> calcSumCosts(int taskSize, vector<pair<int, int>> &taskRelations, vector<int> &scores) {
     vector<vector<int>> graph(taskSize);
     vector<int> indegree(taskSize, 0);
     for (const auto& r : taskRelations) {
@@ -82,7 +82,7 @@ vector<int> calcSumCosts(int taskSize, vector<pair<int, int>> &taskRelations, ve
         indegree[r.first] += 1;
     }
 
-    vector<int> taskSumCosts(graph.size(), 0);
+    vector<long long> taskSumCosts(graph.size(), 0);
 
     queue<int> zeroIndegreeVertexes;
     for (int i = 0; i < graph.size(); i++) {
@@ -202,8 +202,6 @@ class Portfolios {
     }
 
     void updatePortfolioAndEstimation(int memberId, int finishedTaskId, int duration) {
-        assert(0 < memberId && memberId < 21);
-        assert(0 < finishedTaskId && finishedTaskId < 1001);
         portfolios[memberId].results.push_back({ finishedTaskId, duration });
         portfolios[memberId].updateSkillset(skills, tasks);
         updateMembersEstimation(memberId);
@@ -227,11 +225,9 @@ class Portfolios {
 
     Skillset getSkillset(int memberId) { return portfolios[memberId].skillset; }
     Portfolio getPortfolio(int memberId) { return portfolios[memberId]; }
-    int getEstimation(int memberId, int taskId) { 
-        assert(0 < taskId && taskId < estimatedDurations.size());
-        assert(0 < memberId && memberId < estimatedDurations[taskId].size());
+    int getEstimation(int memberId, int taskId) {
         return estimatedDurations[taskId][memberId];
-        }
+    }
 };
 
 
@@ -275,16 +271,15 @@ int main() {
         indegree[second] += 1;
     }
 
-    vector<int> taskSumCosts = calcSumCosts(tasks.size(), taskRelations, taskScores);
+    vector<long long> taskSumCosts = calcSumCosts(tasks.size(), taskRelations, taskScores);
     vector<int> taskDists = calcSumDists(tasks.size(), taskRelations);
 
     set<int> readyTasks;
     vector<set<int>> taskQueues(m + 1);
     for (int taskId = 1; taskId < indegree.size(); taskId++) {
         if (indegree[taskId] == 0) {
-            readyTasks.insert(taskId);
             int pickedMemberId = randInt(1, m + 1);
-            assert(0 < pickedMemberId < taskQueues.size());
+            readyTasks.insert(taskId);
             taskQueues[pickedMemberId].insert(taskId);
         }
     }
@@ -310,11 +305,9 @@ int main() {
                 int bestTaskPriority = -1;
 
                 for (auto& taskId : taskQueues[memberId]) {
-                    assert(0 < taskId && taskId < 1001);
-                    assert(0 < memberId && memberId < 21);
                     int distFromLast = taskDists[taskId];
-                    int taskPriority = distFromLast * 1000 + -portfolios.getEstimation(memberId, taskId);
-                    // int taskPriority = taskSumCosts[taskId] +  portfolios.getEstimation(memberId, taskId);
+                    // int taskPriority = distFromLast * 1000 + -portfolios.getEstimation(memberId, taskId);
+                    int taskPriority = taskSumCosts[taskId] +  portfolios.getEstimation(memberId, taskId);
                     // int taskPriority = taskSumCosts[taskId]; // +  portfolios.getEstimation(memberId, taskId);
 
                     if (bestTaskId == -1 || bestTaskPriority < taskPriority) {
@@ -326,8 +319,6 @@ int main() {
                 if (bestTaskId == -1) continue;
 
                 int taskId = bestTaskId;
-                    assert(0 < taskId && taskId < 1001);
-                    assert(0 < memberId && memberId < 21);
                 assignations.push_back(make_pair(memberId, taskId));
 
                 int estDuration = portfolios.getEstimation(memberId, taskId);
@@ -363,8 +354,6 @@ int main() {
             cin >> finishedMemberId;
             int finishedTaskId = assignedTaskMap[finishedMemberId].taskId;
             int duration = day - assignedTaskMap[finishedMemberId].startAt;
-                    assert(0 < finishedTaskId && finishedTaskId < 1001);
-                    assert(0 < finishedMemberId && finishedMemberId < 21);
             int estDuration = assignedTaskMap[finishedMemberId].estFinishAt - assignedTaskMap[finishedMemberId].startAt;
 
             if (PRINT_DEBUG) {
@@ -375,14 +364,11 @@ int main() {
             assignedTaskMap.erase(finishedMemberId);
             availableMembers.insert(finishedMemberId);
             
-            assert(0 < finishedTaskId && finishedTaskId < graph.size());
             for (auto& taskId : graph[finishedTaskId]) {
-                    assert(0 < taskId && taskId < 1001);
                 indegree[taskId] -= 1;
                 if (indegree[taskId] == 0) {
                     readyTasks.insert(taskId);
                     int pickedMemberId = randInt(1, m + 1);
-                    assert(0 < pickedMemberId < taskQueues.size());
                     taskQueues[pickedMemberId].insert(taskId);
                 }
             }
@@ -391,30 +377,41 @@ int main() {
 
         // タスクキューを整理
         vector<int> sumDurations(m+1, 0);
+        vector<int> sumDists(m+1, 0);
+        int sumAllDists = 0;
         for (int memberId = 1; memberId < m+1; ++memberId) {
-                    assert(0 < memberId && memberId < 21);
             if (0 < assignedTaskMap.count(memberId)) {
                 int startTaskAt = assignedTaskMap[memberId].startAt;
                 int taskId = assignedTaskMap[memberId].taskId;
                 int estimatedDays = portfolios.getEstimation(memberId, taskId);
-                    assert(0 < taskId && taskId < 1001);
                 sumDurations[memberId] = max(1, startTaskAt + estimatedDays - day);
             }
             for (auto& taskId : taskQueues[memberId]) {
-                    assert(0 < memberId && memberId < sumDurations.size());
-                    assert(0 < taskId && taskId < 1001);
                 sumDurations[memberId] += portfolios.getEstimation(memberId, taskId);
+                sumDists[memberId] += taskDists[taskId];
+                sumAllDists += taskDists[taskId];
             }
         }
+        int averageSumDist = sumAllDists / m;
         
-        int COEF_A = 10000;
-        int COEF_B = 0;
-        int score = *max_element(sumDurations.begin(), sumDurations.end()) * COEF_A + accumulate(sumDurations.begin(), sumDurations.end(), 0) * COEF_B;
-        int beforeMaxDuration = *max_element(sumDurations.begin(), sumDurations.end());
+        int COEF_A = 100000;
+        int COEF_B = 1;
+        int COEF_C = 1000;
+        int distsScore = 0;
         int loop = 0;
         int LOOP_MAX = 10000;
         int R = 1000000;
+        for (int memberId = 1; memberId < m+1; ++memberId) {
+            distsScore += abs(averageSumDist - sumDists[memberId]);
+        }
+        cerr << "sumAllDists" << sumAllDists << " averageSumDist " << averageSumDist << " distsScore" << distsScore << endl;
+        int score = *max_element(sumDurations.begin(), sumDurations.end()) * COEF_A
+             + accumulate(sumDurations.begin(), sumDurations.end(), 0) * COEF_B
+             + distsScore * COEF_C;
+        int beforeMaxDuration = *max_element(sumDurations.begin(), sumDurations.end());
+
     
+        cerr << "before distsScore: " << distsScore << endl;
         if (PRINT_DEBUG) {
             cerr << "before score: " << score << " min:" << beforeMaxDuration << ", sum: " << accumulate(sumDurations.begin(), sumDurations.end(), 0) << ", seq:";
             for (auto& dur : sumDurations) cerr << " " << dur;
@@ -423,7 +420,7 @@ int main() {
 
         while(loop < LOOP_MAX) {
             loop++;
-            
+
             // int pickFromMemberId = randInt(1, m + 1);
             int pickFromMemberId = -1;
             int largestDuration = -1;
@@ -442,9 +439,18 @@ int main() {
 
             sumDurations[pickFromMemberId] -= portfolios.getEstimation(pickFromMemberId, pickedTaskId);
             sumDurations[pickToMemberId] += portfolios.getEstimation(pickToMemberId, pickedTaskId);
-            
-            int nextScore = *max_element(sumDurations.begin(), sumDurations.end()) * COEF_A + accumulate(sumDurations.begin(), sumDurations.end(), 0) * COEF_B;
-            
+        
+            sumDists[pickFromMemberId] -= taskDists[pickedTaskId];
+            sumDists[pickToMemberId] += taskDists[pickedTaskId];
+
+            int nextDistsScore = 0;
+            for (int memberId = 1; memberId < m+1; ++memberId) {
+                nextDistsScore += abs(averageSumDist - sumDists[memberId]);
+            }
+            int nextScore = *max_element(sumDurations.begin(), sumDurations.end()) * COEF_A
+                 + accumulate(sumDurations.begin(), sumDurations.end(), 0) * COEF_B
+                 + nextDistsScore * COEF_C;
+
             bool apply = score >= nextScore;
 
             if (!apply) {
@@ -455,14 +461,19 @@ int main() {
                 taskQueues[pickFromMemberId].erase(pickedTaskId);
                 taskQueues[pickToMemberId].insert(pickedTaskId);
                 score = nextScore;
+                distsScore = nextDistsScore;
             } else {
                 // UNDO
                 sumDurations[pickFromMemberId] += portfolios.getEstimation(pickFromMemberId, pickedTaskId);
                 sumDurations[pickToMemberId] -= portfolios.getEstimation(pickToMemberId, pickedTaskId);
+
+                sumDists[pickFromMemberId] += taskDists[pickedTaskId];
+                sumDists[pickToMemberId] -= taskDists[pickedTaskId];
             }
         }
             
         int afterMaxDuration = *max_element(sumDurations.begin(), sumDurations.end());
+        cerr << "after distsScore: " << distsScore << endl;
         if (PRINT_DEBUG) {
             cerr << "after score: " << score << " min:" << afterMaxDuration << ", sum: " << accumulate(sumDurations.begin(), sumDurations.end(), 0) << ", seq:";
             for (auto& dur : sumDurations) cerr << " " << dur;
