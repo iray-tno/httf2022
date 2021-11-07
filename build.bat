@@ -1,4 +1,4 @@
-clang++ -target x86_64-pc-windows-gnu ./ans.cpp -O3
+clang++ -target x86_64-pc-windows-gnu ./ans.cpp -O3 -D LOCAL
 if %ERRORLEVEL% NEQ 0 goto FAILURE
 
 cd tools
